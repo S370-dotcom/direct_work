@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Work Connect</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .lang-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .lang-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border-color: #3b82f6;
+        }
+        
+        /* Updated skill icon styles for hover effect */
+        .skill-icon {
+            transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out;
+            border: 2px solid transparent;
+        }
+
+        /* Add hover effect for skill icons, like the .card hover */
+        .skill-icon:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* This "selected" style is now used on BOTH screens */
+        .skill-icon.selected {
+            background-color: #dbeafe; /* light blue */
+            border-color: #2563eb; /* blue */
+            transform: scale(1.05);
+        }
+
+        /* Make selected hover state combine effects */
+        .skill-icon.selected:hover {
+            transform: translateY(-5px) scale(1.05); /* Combine translate and scale */
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%;
+            overflow: auto; background-color: rgba(0, 0, 0, 0.5); align-items: center; justify-content: center;
+        }
+        .modal-content {
+            background-color: #fefefe; margin: auto; padding: 2rem; border: 1px solid #888;
+            width: 90%; max-width: 500px; border-radius: 12px; text-align: center;
+        }
+        /* Custom radio button styles */
+        .work-type-label {
+            border: 2px solid #e5e7eb; padding: 1rem; border-radius: 0.75rem;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .work-type-label:hover { border-color: #9ca3af; }
+        input[type="radio"]:checked+.work-type-label { border-color: #2563eb; background-color: #dbeafe; }
+        input[type="radio"] { display: none; }
+        
+        /* Mic button listening animation */
+        .mic-btn.listening svg {
+            color: #ef4444; /* red */
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+    <div id="app" class="w-full max-w-4xl mx-auto p-4">
+
+        <div id="language-selection" class="hidden text-center">
+            <h1 class="text-3xl md:text-5xl font-bold text-gray-800 mb-8">Choose Your Language</h1>
+            <div id="language-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                </div>
+        </div>
+        
+        <div id="role-selection" class="hidden text-center">
+            <h1 class="text-3xl md:text-5xl font-bold text-gray-800 mb-4" data-translate-key="role_title_main"></h1>
+            <h2 class="text-xl md:text-2xl text-gray-600 mb-12" data-translate-key="role_title_sub"></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div id="iam-worker" class="card bg-white p-8 rounded-2xl shadow-lg cursor-pointer flex flex-col items-center justify-center">
+                    <img src="worker.png" alt="Worker Icon" class="w-32 h-32 mb-6 rounded-full object-cover">
+                    <h3 class="text-2xl font-bold text-gray-700" data-translate-key="role_worker_main"></h3>
+                    <p class="text-lg text-gray-500" data-translate-key="role_worker_sub"></p>
+                </div>
+                <div id="iam-provider" class="card bg-white p-8 rounded-2xl shadow-lg cursor-pointer flex flex-col items-center justify-center">
+                    <img src="employer_2.png" alt="Job Provider Icon" class="w-32 h-32 mb-6 rounded-full object-cover">
+                    <h3 class="text-2xl font-bold text-gray-700" data-translate-key="role_employer_main"></h3>
+                    <p class="text-lg text-gray-500" data-translate-key="role_employer_sub"></p>
+                </div>
+            </div>
+        </div>
+
+        <div id="worker-choice" class="hidden text-center">
+            <button class="back-btn mb-6 text-blue-600 font-semibold" data-translate-key="go_back"></button>
+            <h2 class="text-2xl md:text-4xl font-bold text-gray-800 mb-8" data-translate-key="worker_choice_title"></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div id="btn-go-to-register" class="card bg-white p-8 rounded-2xl shadow-lg cursor-pointer flex flex-col items-center justify-center">
+                    <span class="text-6xl mb-4">📝</span>
+                    <h3 class="text-2xl font-bold text-gray-700" data-translate-key="worker_choice_register_main"></h3>
+                    <p class="text-lg text-gray-500" data-translate-key="worker_choice_register_sub"></p>
+                </div>
+                <div id="btn-go-to-job-board" class="card bg-white p-8 rounded-2xl shadow-lg cursor-pointer flex flex-col items-center justify-center">
+                    <span class="text-6xl mb-4">📢</span>
+                    <h3 class="text-2xl font-bold text-gray-700" data-translate-key="worker_choice_jobs_main"></h3>
+                    <p class="text-lg text-gray-500" data-translate-key="worker_choice_jobs_sub"></p>
+                </div>
+            </div>
+        </div>
+
+        <div id="provider-choice" class="hidden text-center">
+            <button class="back-btn mb-6 text-blue-600 font-semibold" data-translate-key="go_back"></button>
+            <h2 class="text-2xl md:text-4xl font-bold text-gray-800 mb-8" data-translate-key="employer_choice_title"></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div id="btn-go-to-find" class="card bg-white p-8 rounded-2xl shadow-lg cursor-pointer flex flex-col items-center justify-center">
+                    <span class="text-6xl mb-4">🗺️</span>
+                    <h3 class="text-2xl font-bold text-gray-700" data-translate-key="employer_choice_find_main"></h3>
+                    <p class="text-lg text-gray-500" data-translate-key="employer_choice_find_sub"></p>
+                </div>
+                <div id="btn-go-to-broadcast" class="card bg-white p-8 rounded-2xl shadow-lg cursor-pointer flex flex-col items-center justify-center">
+                    <span class="text-6xl mb-4">📣</span>
+                    <h3 class="text-2xl font-bold text-gray-700" data-translate-key="employer_choice_broadcast_main"></h3>
+                    <p class="text-lg text-gray-500" data-translate-key="employer_choice_broadcast_sub"></p>
+                </div>
+            </div>
+        </div>
+
+        <div id="worker-registration" class="hidden">
+            <button class="back-btn mb-6 text-blue-600 font-semibold" data-translate-key="go_back"></button>
+            <div class="bg-white p-8 rounded-2xl shadow-lg">
+                <form id="worker-form" class="space-y-8">
+                    <div>
+                        <h2 class="text-2xl font-bold mb-2 text-center" data-translate-key="form_select_skills"></h2>
+                        <div class="relative my-6">
+                            <input type="search" id="skill-search-input" data-translate-key="form_search_skill_placeholder" class="w-full text-lg p-3 pl-4 pr-12 border-2 border-gray-300 rounded-lg">
+                            <button type="button" id="skill-search-mic" class="mic-btn absolute inset-y-0 right-0 flex items-center pr-4 text-gray-500 hover:text-blue-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                            </button>
+                        </div>
+                        <div id="skill-selection" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 my-6">
+                            </div>
+                    </div>
+
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold" data-translate-key="form_share_location_title"></h2>
+                        <p class="text-lg text-gray-600 mb-4" data-translate-key="form_share_location_sub"></p>
+                        <button type="button" id="get-location-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-xl flex items-center justify-center space-x-2">
+                            <span>📍</span>
+                            <span data-translate-key="form_find_location_btn"></span>
+                        </button>
+                        <p id="location-status" class="mt-2 text-sm text-gray-500 h-5"></p>
+                    </div>
+
+                    <div>
+                        <h2 class="text-2xl font-bold mb-2 text-center" data-translate-key="form_details_title"></h2>
+                        <div class="space-y-6 mt-6">
+                            <input id="worker-name" class="w-full text-lg p-3 border-2 border-gray-300 rounded-lg" type="text" data-translate-key="form_fullname_placeholder" required />
+                            <input id="worker-phone" class="w-full text-lg p-3 border-2 border-gray-300 rounded-lg" type="tel" data-translate-key="form_mobile_placeholder" required pattern="[0-9]{10}" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <h2 class="text-2xl font-bold mb-4 text-center" data-translate-key="form_work_type_title"></h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                            <div><input type="radio" id="wage-daily" name="work-type" value="daily" required><label for="wage-daily" class="work-type-label block">
+                                    <h4 class="font-bold text-lg text-gray-800" data-translate-key="form_work_type_daily_main"></h4>
+                                    <p class="text-sm text-gray-600" data-translate-key="form_work_type_daily_sub"></p>
+                            </label></div>
+                            <div><input type="radio" id="wage-contract" name="work-type" value="contract"><label for="wage-contract" class="work-type-label block">
+                                    <h4 class="font-bold text-lg text-gray-800" data-translate-key="form_work_type_contract_main"></h4>
+                                    <p class="text-sm text-gray-600" data-translate-key="form_work_type_contract_sub"></p>
+                            </label></div>
+                        </div>
+                    </div>
+
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold" data-translate-key="form_rate_title"></h2>
+                        <p class="text-lg text-gray-600 mb-4" data-translate-key="form_rate_sub"></p>
+                        <div class="bg-gray-100 p-4 rounded-lg flex items-center space-x-4">
+                            <span class="text-5xl">📅</span>
+                            <div class="flex-grow flex items-center border-2 border-gray-300 bg-white rounded-lg p-3">
+                                <span class="text-2xl font-bold text-gray-600">₹</span>
+                                <input id="worker-wage" class="pl-2 outline-none border-none w-full text-2xl font-bold text-gray-800" type="number" data-translate-key="form_rate_placeholder" required />
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-xl" data-translate-key="form_submit_btn"></button>
+                </form>
+            </div>
+        </div>
+
+        <div id="broadcast-view" class="hidden">
+            <button class="back-btn mb-6 text-blue-600 font-semibold" data-translate-key="go_back"></button>
+            <div class="bg-white p-8 rounded-2xl shadow-lg">
+                <h2 class="text-center text-3xl font-bold text-gray-800 mb-8" data-translate-key="broadcast_title"></h2>
+                <form id="broadcast-form" class="space-y-6">
+                    <div>
+                        <label for="broadcast-skill" class="block text-lg font-semibold text-gray-700 mb-2" data-translate-key="broadcast_skill_label"></label>
+                        <select id="broadcast-skill" class="w-full text-lg p-3 border-2 border-gray-300 rounded-lg" required></select>
+                    </div>
+                    <div>
+                        <label for="broadcast-count" class="block text-lg font-semibold text-gray-700 mb-2" data-translate-key="broadcast_count_label"></label>
+                        <input id="broadcast-count" class="w-full text-lg p-3 border-2 border-gray-300 rounded-lg" type="number" data-translate-key="broadcast_count_placeholder" required />
+                    </div>
+                    <div>
+                        <label for="broadcast-wage" class="block text-lg font-semibold text-gray-700 mb-2" data-translate-key="broadcast_wage_label"></label>
+                        <div class="flex items-center border-2 border-gray-300 bg-white rounded-lg p-3">
+                            <span class="text-2xl font-bold text-gray-600">₹</span>
+                            <input id="broadcast-wage" class="pl-2 outline-none border-none w-full text-2xl font-bold text-gray-800" type="number" data-translate-key="broadcast_wage_placeholder" required />
+                            <span class="text-lg text-gray-500 ml-2" data-translate-key="broadcast_per_day"></span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-lg font-semibold text-gray-700 mb-2" data-translate-key="broadcast_details_label"></label>
+                        <div class="space-y-4">
+                            <input id="broadcast-name" class="w-full text-lg p-3 border-2 border-gray-300 rounded-lg" type="text" data-translate-key="form_fullname_placeholder" required />
+                            <input id="broadcast-phone" class="w-full text-lg p-3 border-2 border-gray-300 rounded-lg" type="tel" data-translate-key="form_mobile_placeholder" required pattern="[0-9]{10}" />
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg text-xl" data-translate-key="broadcast_submit_btn"></button>
+                </form>
+            </div>
+        </div>
+
+        <div id="job-board-view" class="hidden">
+            <button class="back-btn mb-6 text-blue-600 font-semibold" data-translate-key="go_back"></button>
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-8" data-translate-key="job_board_title"></h2>
+            <div id="job-board-list" class="space-y-4">
+                </div>
+            <p id="no-jobs-found" class="text-center text-gray-500 mt-8 hidden" data-translate-key="job_board_no_jobs"></p>
+        </div>
+
+        <div id="provider-view" class="hidden">
+            <button class="back-btn mb-6 text-blue-600 font-semibold" data-translate-key="go_back"></button>
+            <div class="bg-white p-8 rounded-2xl shadow-lg text-center">
+                <h2 class="text-2xl font-bold mb-4" data-translate-key="find_worker_title"></h2>
+                <div class="relative my-6">
+                    <input type="search" id="job-search-input" data-translate-key="find_worker_placeholder" class="w-full text-lg p-3 pl-4 pr-12 border-2 border-gray-300 rounded-lg">
+                    </div>
+                <div id="job-selection" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 my-6">
+                    </div>
+            </div>
+
+            <div id="map-container" class="mt-8 hidden">
+                <h2 class="text-2xl font-bold mb-4 text-center" data-translate-key="find_worker_map_title"></h2>
+                <div id="map" class="h-96 w-full rounded-lg shadow-md z-0"></div>
+            </div>
+
+            <div id="worker-list-container" class="mt-8 hidden">
+                <h2 id="worker-list-heading" class="text-2xl font-bold mb-4 text-center" data-translate-key="find_worker_available_workers"></h2>
+                <div id="worker-list" class="space-y-4">
+                    </div>
+                <p id="no-workers-found" class="text-center text-gray-500 mt-8 hidden" data-translate-key="find_worker_no_worker_found"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="success-modal" class="modal">
+        <div class="modal-content">
+            <svg class="w-16 h-16 text-green-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <h2 id="success-modal-title" class="text-2xl font-bold text-gray-800" data-translate-key="modal_success_title"></h2>
+            <p id="success-modal-msg" class="text-lg text-gray-600 mb-6" data-translate-key="modal_success_sub"></p>
+            <button id="close-modal" class="bg-blue-500 text-white font-bold py-2 px-8 rounded-lg" data-translate-key="modal_ok_btn"></button>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // --- TRANSLATIONS ---
+        const translations = {
+            'role_title_main': { en: 'Who are you?', hi: 'आप कौन हैं?', bn: 'আপনি কে?', mr: 'तुम्ही कोण आहात?', te: 'మీరు ఎవరు?', ta: ' நீங்கள் யார்?', kn: 'ನೀವು ಯಾರು?', gu: 'તમે કોણ છો?', ml: 'നിങ്ങൾ ആരാണ്?', or: 'ଆପଣ କିଏ?', pa: 'ਤੁਸੀਂ ਕੌਣ ਹੋ?' },
+            'role_title_sub': { en: 'Select your role', hi: 'अपनी भूमिका चुनें', bn: 'আপনার ভূমিকা নির্বাচন করুন', mr: 'तुमची भूमिका निवडा', te: 'మీ పాత్రను ఎంచుకోండి', ta: 'உங்கள் பங்கைத் தேர்ந்தெடுக்கவும்', kn: 'ನಿಮ್ಮ ಪಾತ್ರವನ್ನು ಆಯ್ಕೆಮಾಡಿ', gu: 'તમારી ભૂમિકા પસંદ કરો', ml: 'നിങ്ങളുടെ റോൾ തിരഞ്ഞെടുക്കുക', or: 'ଆପଣଙ୍କର ଭୂମିକା ବାଛନ୍ତୁ |', pa: 'ਆਪਣੀ ਭੂਮIKA ਚੁਣੋ' },
+            'role_worker_main': { en: 'I am a Worker', hi: 'मैं एक कारीगर हूँ', bn: 'আমি একজন কর্মী', mr: 'मी एक कामगार आहे', te: 'నేను ఒక కార్మికుడిని', ta: 'நான் ஒரு தொழிலாளி', kn: 'ನಾನು ಕೆಲಸಗಾರ', gu: 'હું એક કાર્યકર છું', ml: 'ഞാൻ ഒരു തൊഴിലാളിയാണ്', or: 'ମୁଁ ଜଣେ ଶ୍ରମିକ', pa: 'ਮੈਂ ਇੱਕ ਵਰਕਰ ਹਾਂ' },
+            'role_worker_sub': { en: '(Looking for work)', hi: '(काम ढूंढ रहा हूँ)', bn: '(কাজের সন্ধান করছি)', mr: '(काम शोधत आहे)', te: '(పని కోసం చూస్తున్నాను)', ta: '(வேலை தேடுகிறேன்)', kn: '(ಕೆಲಸ ಹುಡುკುತ್ತಿದ್ದೇನೆ)', gu: '(કામ શોધી રહ્યો છું)', ml: '(ജോലി അന്വേഷിക്കുന്നു)', or: '(କାମ ଖୋଜୁଛି)', pa: '(ਕੰਮ ਲੱਭ ਰਿਹਾ ਹਾਂ)' },
+            'role_employer_main': { en: 'I am an Employer', hi: 'मुझे काम करवाना है', bn: 'আমি একজন নিয়োগকর্তা', mr: 'मला काम करून घ्यायचे आहे', te: 'నేను ఒక యజమానిని', ta: 'நான் ஒரு முதலாளி', kn: 'ನಾನು ಉದ್ಯೋಗದಾತ', gu: 'મારે કામ કરાવવું છે', ml: 'എനിക്ക് ജോലി ചെയ്യിക്കണം', or: 'ମୁଁ ଜଣେ ନିଯୁକ୍ତିଦାତା', pa: 'ਮੈਂ ਇੱਕ ਮਾਲਕ ਹਾਂ' },
+            'role_employer_sub': { en: '(I need work done)', hi: '(मुझे काम करवाना है)', bn: '(আমার কাজ করাতে হবে)', mr: '(मला काम करून घ्यायचे आहे)', te: '(నాకు పని జరగాలి)', ta: '(எனக்கு வேலை செய்ய வேண்டும்)', kn: '(ನನಗೆ ಕೆಲಸ ಮಾಡಿಸಬೇಕು)', gu: '(મારે કામ કરાવવું છે)', ml: '(എനിക്ക് ജോലി ചെയ്യിക്കണം)', or: '(ମୋର କାମ କରାଇବାକୁ ଅଛି)', pa: '(ਮੈਨੂੰ ਕੰਮ ਕਰਵਾਉਣਾ ਹੈ)' },
+            'go_back': { en: '← Go Back', hi: '← वापस जाएं', bn: '← ফিরে যান', mr: '← मागे जा', te: '← వెనక్కి వెళ్ళు', ta: '← பின்செல்', kn: '← ಹಿಂದೆ ಹೋಗಿ', gu: '← પાછા જાઓ', ml: '← തിരികെ പോകുക', or: '← ପଛକୁ ଯାଆନ୍ତୁ', pa: '← ਪਿੱਛੇ ਜਾਓ' },
+            'worker_choice_title': { en: 'What do you want to do?', hi: 'आप क्या करना चाहते हैं?', bn: 'আপনি কি করতে চান?', mr: 'तुम्हाला काय करायचे आहे?', te: 'మీరు ఏమి చేయాలనుకుంటుంటున్నారు?', ta: 'நீங்கள் என்ன செய்ய விரும்புகிறீர்கள்?', kn: 'ನೀವು ಏನು ಮಾಡಲು ಬಯಸುತ್ತೀರಿ?', gu: 'તમે શું કરવા માંગો છો?', ml: 'നിങ്ങൾക്ക് എന്ത് ചെയ്യണം?', or: 'ଆପଣ କଣ କରିବାକୁ ଚାହାନ୍ତି?', pa: 'ਤੁਸੀਂ ਕੀ ਕਰਨਾ ਚਾਹੁੰਦੇ ਹੋ?' },
+            'worker_choice_register_main': { en: 'Register as New Worker', hi: 'नया खाता खोलें', bn: 'নতুন কর্মী হিসাবে নিবন্ধন করুন', mr: 'नवीन कामगार म्हणून नोंदणी करा', te: 'కొత్త కార్మికుడిగా నమోదు చేసుకోండి', ta: 'புதிய தொழிலாளியாக பதிவு செய்யுங்கள்', kn: 'ಹೊಸ ಕೆಲಸಗಾರನಾಗಿ ನೋಂದಾಯಿಸಿ', gu: 'નવા કાર્યકર તરીકે નોંધણી કરો', ml: 'പുതിയ തൊഴിലാളിയായി രജിസ്റ്റർ ചെയ്യുക', or: 'ନୂତନ ଶ୍ରମିକ ଭାବରେ ପଞ୍ଜିକରଣ କରନ୍ତୁ |', pa: 'ਨਵੇਂ ਵਰਕਰ ਵਜੋਂ ਰਜਿਸਟਰ ਕਰੋ' },
+            'worker_choice_register_sub': { en: '(Create a new profile)', hi: '(नया प्रोफाइल बनाएं)', bn: '(একটি নতুন প্রোফাইল তৈরি করুন)', mr: '(नवीन प्रोफाइल तयार करा)', te: '(కొత్త ప్రొఫైల్ సృష్టించండి)', ta: '(புதிய சுயவிவரத்தை உருவாக்கவும்)', kn: '(ಹೊಸ ಪ್ರೊಫೈಲ್ ರಚಿಸಿ)', gu: '(નવી પ્રોફાઇલ બનાવો)', ml: '(പുതിയ പ്രൊഫൈൽ ഉണ്ടാക്കുക)', or: '(ଏକ ନୂତନ ପ୍ରୋଫାଇଲ୍ ସୃଷ୍ଟି କରନ୍ତୁ |)', pa: '(ਨਵੀਂ ਪ੍ਰੋਫਾਈਲ ਬਣਾਓ)' },
+            'worker_choice_jobs_main': { en: 'See Available Jobs', hi: 'उपलब्ध काम देखें', bn: 'উপলব্ধ কাজ দেখুন', mr: 'उपਲਬਧ काम पहा', te: 'అందుబాటులో ఉన్న ఉద్యోగాలను చూడండి', ta: 'கிடைக்கக்கூடிய வேலைகளைப் பார்க்கவும்', kn: 'ಲಭ്യವಿರುವ ಉದ್ಯೋಗಗಳನ್ನು ನೋಡಿ', gu: 'ઉપલબ્ધ નોકરીઓ જુઓ', ml: 'ലഭ്യമായ ജോലികൾ കാണുക', or: 'ଉପਲବ୍ଧ ଚାକିରି ଦେଖନ୍ତୁ |', pa: 'ਉਪਲਬਧ ਨੌਕਰੀਆਂ ਦੇਖੋ' },
+            'worker_choice_jobs_sub': { en: '(View job posts)', hi: '(जॉब पोस्ट देखें)', bn: '(চাকরির পোস্ট দেখুন)', mr: '(जॉब पोस्ट पहा)', te: '(ఉద్యోగ పోస్ట్‌లను వీక్షించండి)', ta: '(வேலை இடுகைகளைப் பார்க்கவும்)', kn: '(ಉದ್ಯೋಗ ಪೋಸ್ಟ್‌ಗಳನ್ನು ವೀಕ್ಷಿಸಿ)', gu: '(જોબ પોસ્ટ્સ જુઓ)', ml: '(ജോലി പോസ്റ്റുകൾ കാണുക)', or: '(ଚାକିରି ପୋଷ୍ଟଗୁଡିକ ଦେਖନ୍ତୁ |)', pa: '(ਨੌਕਰੀ ਦੀਆਂ ਪੋਸਟਾਂ ਵੇਖੋ)' },
+            'employer_choice_title': { en: 'How do you want to find workers?', hi: 'आप कारीगर कैसे खोजना चाहते हैं?', bn: 'আপনি কিভাবে কর্মী খুঁজে পেতে চান?', mr: 'तुम्ही कामगार कसे शोधू इच्छिता?', te: 'మీరు కార్మికులను ఎలా కనుగొనాలనుకుంటున్నారు?', ta: 'நீங்கள் எப்படி தொழிலாளர்களைக் கண்டுபிடிக்க விரும்புகிறீர்கள்?', kn: 'ನೀವು ಕಾರ್ಮಿಕರನ್ನು ಹೇಗೆ ಹುಡುಕಲು ಬಯಸುತ್ತೀರಿ?', gu: 'તમે કામદારોને કેવી રીતે શોધવા માંગો છો?', ml: 'തൊഴിലാളികളെ എങ്ങനെ കണ്ടെത്താനാണ് നിങ്ങൾ ആഗ്രഹിക്കുന്നത്?', or: 'ଆପଣ କିପରି ଶ୍ରମିକ ଖୋଜିବାକୁ ଚାହାଁନ୍ତି?', pa: 'ਤੁਸੀਂ ਕਾਮਿਆਂ ਨੂੰ ਕਿਵੇਂ ਲੱਭਣਾ ਚਾਹੁੰਦੇ ਹੋ?' },
+            'employer_choice_find_main': { en: 'Find on Map', hi: 'नक्शे पर खोजें', bn: 'মানচিত্রে খুঁজুন', mr: 'नकाशावर शोधा', te: 'మ్యాప్‌లో కనుగొనండి', ta: 'வரைபடத்தில் கண்டறியவும்', kn: 'ನಕ್ಷೆಯಲ್ಲಿ ಹುಡುಕಿ', gu: 'નકશા પર શોધો', ml: 'മാപ്പിൽ കണ്ടെത്തുക', or: 'ମାନଚିତ୍ରରେ ଖୋଜନ୍ତୁ |', pa: 'ਨਕਸ਼ੇ \'ਤੇ ਲੱਭੋ' },
+            'employer_choice_find_sub': { en: '(Find Workers Near Me)', hi: '(मेरे पास कारीगर खोजें)', bn: '(আমার কাছাকাছি কর্মী খুঁজুন)', mr: '(माझ्या जवळचे कामगार शोधा)', te: '(నాకు సమీపంలో ఉన్న కార్మికులను కనుగొనండి)', ta: '(எனக்கு அருகிலுள்ள தொழிலாளர்களைக் கண்டறியவும்)', kn: '(ನನ್ನ ಹತ್ತಿರದ ಕಾರ್ಮಿಕರನ್ನು ಹುಡುಕಿ)', gu: '(મારી નજીકના કામદારો શોધો)', ml: '(എനിക്ക് സമീപമുള്ള തൊഴിലാളികളെ കണ്ടെത്തുക)', or: '(ମୋର ନିକଟବର୍ତ୍ତୀ ଶ୍ରମିକମାନଙ୍କୁ ଖୋଜନ୍ତୁ |)', pa: '(ਮੇਰੇ ਨੇੜੇ ਦੇ ਕਾਮਿਆਂ ਨੂੰ ਲੱਭੋ)' },
+            'employer_choice_broadcast_main': { en: 'Post a Job', hi: 'जॉब पोस्ट करें', bn: 'একটি কাজ পোস্ট করুন', mr: 'नोकरी पोस्ट करा', te: 'ఉద్యోగాన్ని పోస్ట్ చేయండి', ta: 'ஒரு வேலையை இடுகையிடவும்', kn: 'ಉದ್ಯೋಗವನ್ನು ಪೋಸ್ಟ್ ಮಾಡಿ', gu: 'જોબ પોસ્ટ કરો', ml: 'ഒരു ജോലി പോസ്റ്റ് ചെയ്യുക', or: 'ଏକ ଚାକିରି ପୋଷ୍ଟ କରନ୍ତୁ |', pa: 'ਇੱਕ ਨੌਕਰੀ ਪੋਸਟ ਕਰੋ' },
+            'employer_choice_broadcast_sub': { en: '(Broadcast a Job)', hi: '(जॉब प्रसारित करें)', bn: '(একটি কাজ সম্প্রচার করুন)', mr: '(नोकरी प्रसारित करा)', te: '(ఉద్యోగాన్ని ప్రసారం చేయండి)', ta: '(ஒரு வேலையை ஒளிபரப்பவும்)', kn: '(ಉದ್ಯೋಗವನ್ನು ಪ್ರಸಾರ ಮಾಡಿ)', gu: '(જોબ બ્રોડકા스트 કરો)', ml: '(ഒരു ജോലി പ്രക്ഷേപണം ചെയ്യുക)', or: '(ଏକ ଚାକିରି ପ୍ରସାରଣ କରନ୍ତୁ |)', pa: '(ਇੱਕ ਨੌਕਰੀ ਦਾ ਪ੍ਰਸਾਰਣ ਕਰੋ)' },
+            'form_select_skills': { en: '1. Select your skills', hi: '१. अपना काम चुनें', bn: '১. আপনার দক্ষতা নির্বাচন করুন', mr: '१. तुमची कौशल्ये निवडा', te: '౧. మీ నైపుణ్యాలను ఎంచుకోండి', ta: '౧. உங்கள் திறமைகளைத் தேர்ந்தெடுக்கவும்', kn: '೧. ನಿಮ್ಮ ಕೌಶಲ್ಯಗಳನ್ನು ಆಯ್ಕೆಮಾಡಿ', gu: '૧. તમારી કુશળતા પસંદ કરો', ml: '௧. നിങ്ങളുടെ കഴിവുകൾ തിരഞ്ഞെടുക്കുക', or: '୧. ଆପଣଙ୍କର କ skills ଶଳ ଚୟନ କରନ୍ତୁ |', pa: '੧. ਆਪਣੇ ਹੁਨਰ ਚੁਣੋ' },
+            'form_search_skill_placeholder': { en: 'Search skill or speak into mic', hi: 'कौशल खोजें या माइक में बोलें', bn: 'দক্ষতা অনুসন্ধান করুন বা মাইকে কথা বলুন', mr: 'कौशल्य शोधा किंवा माइकमध्ये बोला', te: 'నైపుణ్యాన్ని శోధించండి లేదా మైక్‌లో మాట్లాడండి', ta: 'திறனைத் தேடுங்கள் அல்லது மைக்கில் பேசுங்கள்', kn: 'ಕೌಶಲ್ಯವನ್ನು ಹುಡುಕಿ বা ಮೈಕ್‌ನಲ್ಲಿ ಮಾತನಾಡಿ', gu: 'કૌશલ્ય શોધો અથવા માઇકમાં બોલો', ml: 'നൈപുണ്യം തിരയുക അല്ലെങ്കിൽ മൈക്കിൽ സംസാരിക്കുക', or: 'କ skill ଶଳ ଖୋଜନ୍ତୁ କିମ୍ବା ମାଇକ୍ ରେ କୁହନ୍ତୁ |', pa: 'ਹੁਨਰ ਦੀ ਖੋਜ ਕਰੋ ਜਾਂ ਮਾਈਕ ਵਿੱਚ ਬੋਲੋ' },
+            'form_share_location_title': { en: '2. Share your location', hi: '२. अपनी लोकेशन बताएं', bn: '২. আপনার অবস্থান শেয়ার করুন', mr: '२. तुमचे लोकेशन शेअर करा', te: '౨. మీ స్థానాన్ని పంచుకోండి', ta: '౨. உங்கள் இருப்பிடத்தைப் பகிரவும்', kn: '೨. ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ಹಂಚಿಕೊಳ್ಳಿ', gu: '૨. તમારું સ્થાન શેર કરો', ml: '௨. നിങ്ങളുടെ ലൊക്കേഷൻ പങ്കിടുക', or: '୨. ଆପଣଙ୍କର ଅବସ୍ଥାନ ବାଣ୍ଟନ୍ତୁ |', pa: '੨. ਆਪਣਾ ਟਿਕਾਣਾ ਸਾਂਝਾ ਕਰੋ' },
+            'form_share_location_sub': { en: '(So employers can find you)', hi: '(ताकि मालिक आपको ढूंढ सकें)', bn: '(যাতে নিয়োগকর্তারা আপনাকে খুঁজে পেতে পারে)', mr: '(जेणेकरून मालक तुम्हाला शोधू शकतील)', te: '(యజమానులు మిమ్మల్ని కనుగొనగలరు)', ta: '(முதலாளிகள் உங்களைக் கண்டுபிடிக்க முடியும்)', kn: '(ಆದ್ದರಿಂದ ಉದ್ಯೋಗದಾತರು ನಿಮ್ಮನ್ನು ಹುಡುಕಬಹುದು)', gu: '(જેથી નોકરીદાતાઓ તમને શોધી શકે)', ml: '(തൊഴിലുടമകൾക്ക് നിങ്ങളെ കണ്ടെത്താൻ കഴിയും)', or: '(ଯାହା ଦ୍ employ ାରା ନିଯୁକ୍ତିଦାତାମାନେ ଆପଣଙ୍କୁ ପାଇପାରିବେ |)', pa: '(ਤਾਂ ਜੋ ਮਾਲਕ ਤੁਹਾਨੂੰ ਲੱਭ ਸਕਣ)' },
+            'form_find_location_btn': { en: 'Find My Location', hi: 'मेरी लोकेशन पता करें', bn: 'আমার অবস্থান খুঁজুন', mr: 'माझे लोकेशन शोधा', te: 'నా స్థానాన్ని కనుగొనండి', ta: 'எனது இருப்பிடத்தைக் கண்டறியவும்', kn: 'ನನ್ನ ಸ್ಥಳವನ್ನು ಹುಡುಕಿ', gu: 'મારું સ્થાન શોધો', ml: 'എന്റെ സ്ഥലം കണ്ടെത്തുക', or: 'ମୋର ଅବସ୍ଥାନ ଖୋଜ |', pa: 'ਮੇਰਾ ਟਿਕਾਣਾ ਲੱਭੋ' },
+            'form_details_title': { en: '3. Enter your details', hi: '३. अपनी जानकारी दें', bn: '৩. আপনার বিবরণ লিখুন', mr: '३. तुमची माहिती प्रविष्ट करा', te: '౩. మీ వివరాలను నమోదు చేయండి', ta: '౩. உங்கள் விவரங்களை உள்ளிடவும்', kn: '೩. ನಿಮ್ಮ ವಿವರಗಳನ್ನು ನಮೂದಿಸಿ', gu: '૩. તમારી વિગતો દાખલ કરો', ml: '൩. നിങ്ങളുടെ വിവരങ്ങൾ നൽകുക', or: '୩. ଆପଣଙ୍କର ବିବରଣୀ ପ୍ରବେଶ କରନ୍ତୁ |', pa: '੩. ਆਪਣੇ ਵੇਰਵੇ ਦਰਜ ਕਰੋ' },
+            'form_fullname_placeholder': { en: 'Full Name', hi: 'पूरा नाम', bn: 'পুরো নাম', mr: 'पूर्ण नाव', te: 'పూర్తి పేరు', ta: 'முழு பெயர்', kn: 'ಪೂರ್ಣ ಹೆಸರು', gu: 'પૂરું નામ', ml: 'முഴുവൻ പേര്', or: 'ପୁରା ନାମ', pa: 'ਪੂਰਾ ਨਾਂਮ' },
+            'form_mobile_placeholder': { en: 'Mobile Number', hi: 'मोबाइल नंबर', bn: 'মোবাইল নম্বর', mr: 'मोबाईल नंबर', te: 'మొబైల్ నంబర్', ta: 'கைபேசி எண்', kn: 'ಮೊಬೈల్ ಸಂಖ್ಯೆ', gu: 'મોબાઇલ નંબર', ml: 'മൊബൈൽ നമ്പർ', or: 'ମୋବାଇଲ୍ ନମ୍ବର', pa: 'ਮੋਬਾਇਲ ਨੰਬਰ' },
+            'form_work_type_title': { en: '4. Choose work type', hi: '४. काम का तरीका चुनें', bn: '৪. কাজের ধরন বেছে নিন', mr: '४. कामाचा प्रकार निवडा', te: '౪. పని రకాన్ని ఎంచుకోండి', ta: '౪. வேலை வகையைத் தேர்ந்தெடுக்கவும்', kn: '೪. ಕೆಲಸದ ಪ್ರಕಾರವನ್ನು ಆರಿಸಿ', gu: '૪. કામનો પ્રકાર પસંદ કરો', ml: '൪. ജോലി തരം തിരഞ്ഞെടുക്കുക', or: '୪. କାର୍ଯ୍ୟ ପ୍ରକାର ବାଛନ୍ତୁ |', pa: '੪. ਕੰਮ ਦੀ ਕਿਸਮ ਚੁਣੋ' },
+            'form_work_type_daily_main': { en: 'Daily Wage', hi: 'दिहाड़ी पर', bn: 'দৈনিক মজুরি', mr: 'रोजंदारीवर', te: 'రోజువారీ వేతనం', ta: 'தினசரி ஊதியம்', kn: 'ದಿನಗೂಲಿ', gu: 'દૈનિક વેતન', ml: 'ദിവസവേതനം', or: 'ଦ daily ନିକ ମଜୁରୀ |', pa: 'ਦਿਹਾੜੀ' },
+            'form_work_type_daily_sub': { en: '(Paid per day)', hi: '(रोज का पैसा)', bn: '(প্রতিদিন বেতন)', mr: '(दररोज पैसे)', te: '(రోజుకు చెల్లించబడుతుంది)', ta: '(ஒரு நாளைக்கு ஊதியம்)', kn: '(ದಿನಕ್ಕೆ ಪಾವತಿಸಲಾಗುತ್ತದೆ)', gu: '(દરરોજ ચૂકવણી)', ml: '(ദിവസവും ശമ്പളം)', or: '(ପ୍ରତିଦିନ ଦରਮା)', pa: '(ਪ੍ਰਤੀ ਦਿਨ ਭੁਗਤਾਨ ਕੀਤਾ)' },
+            'form_work_type_contract_main': { en: 'Contract', hi: 'ठेके पर', bn: 'চুক্তি', mr: 'ठेका', te: 'కాంట్రాక్ట్', ta: 'ஒப்பந்தம்', kn: 'ಒಪ್ಪಂದ', gu: 'કરાર', ml: 'കരാർ', or: 'ଚୁକ୍ତି', pa: 'ਇਕਰਾਰਨਾਮਾ' },
+            'form_work_type_contract_sub': { en: '(Full project payment)', hi: '(पूरे काम का पैसा)', bn: '(সম্পূর্ণ প্রকল্পের অর্থপ্রদান)', mr: '(पूर्ण कामाचे पैसे)', te: '(పూర్తి ప్రాజెక్ట్ చెల్లింపు)', ta: '(முழு திட்டத்திற்கும் பணம்)', kn: '(ಪೂರ್ಣ ಯೋಜನೆಯ ಪಾವತಿ)', gu: '(સંપૂર્ણ પ્રોજેક્ટ ચુકવણી)', ml: '(മുഴുവൻ പ്രോജക്റ്റ് പേയ്മെന്റ്)', or: '(ସମ୍ପୂର୍ଣ୍ଣ ପ୍ରକଳ୍ପ ଦେୟ |)', pa: '(ਪੂਰਾ ਪ੍ਰੋਜੈਕਟ ਭੁਗਤਾਨ)' },
+            'form_rate_title': { en: '5. What is your per-day rate?', hi: '५. आप एक दिन का कितना लेते हैं?', bn: '৫. আপনার প্রতিদিনের হার কত?', mr: '५. तुमचा प्रति-दिवস दर काय आहे?', te: '౫. మీ ప్రతిరోజు రేటు ఎంత?', ta: '௫. உங்கள் தினசரி விகிதம் என்ன?', kn: '೫. ನಿಮ್ಮ ಪ್ರತಿ ದಿನದ ದರ ಎಷ್ಟು?', gu: '૫. તમારો પ્રતિ-દિવસ દર શું છે?', ml: '൫. നിങ്ങളുടെ പ്രതിദിന നിരക്ക് എത്രയാണ്?', or: '୫. ଆପଣଙ୍କର ପ୍ରତିଦିନର ହାର କ’ଣ?', pa: '੫. ਤੁਹਾਡੀ ਪ੍ਰਤੀ-ਦਿਨ ਦਰ ਕੀ ਹੈ?' },
+            'form_rate_sub': { en: '(Enter amount in ₹)', hi: '(राशि ₹ में दर्ज करें)', bn: '(টাকায় পরিমাণ লিখুন)', mr: '(रुपयामध्ये रक्कम प्रविष्ट करा)', te: '(మొత్తాన్ని ₹ లో నమోదు చేయండి)', ta: '(தொகையை ₹ இல் உள்ளிடவும்)', kn: '(ಮೊತ್ತವನ್ನು ₹ ನಲ್ಲಿ ನಮೂದಿಸಿ)', gu: '(₹ માં રકમ દાખલ કરો)', ml: '(തുക ₹ ൽ രേഖപ്പെടുത്തുക)', or: '(₹ ରେ ପରିମାଣ ପ୍ରବେଶ କରନ୍ତୁ |)', pa: '(₹ ਵਿੱਚ ਰਕਮ ਦਾਖਲ ਕਰੋ)' },
+            'form_rate_placeholder': { en: 'e.g., 800', hi: 'उदा. ८००', bn: 'उदा. ৮০০', mr: 'उदा. ८००', te: 'ఉదా. ౮౦౦', ta: 'எ.கா. ௮௦௦', kn: 'ಉದಾ. ೮೦೦', gu: 'દા.ત. ૮૦૦', ml: 'ഉദാ. ൮൦൦', or: 'ଉଦା. ୮୦୦', pa: 'ਜਿਵੇਂ ਕਿ ੮੦੦' },
+            'form_submit_btn': { en: 'Submit Profile', hi: 'प्रोफ़ाइल जमा करें', bn: 'প্রোফাইল জমা দিন', mr: 'प्रोफाइल सबमिट करा', te: 'ప్రొఫైల్‌ను సమర్పించు', ta: 'சுயவிவரத்தைச் சமர்ப்பிக்கவும்', kn: 'ಪ್ರೊಫೈಲ್ ಸಲ್ಲಿಸಿ', gu: 'પ્રોફાઇલ સબમિટ કરો', ml: 'പ്രൊഫൈൽ സമർപ്പിക്കുക', or: 'ପ୍ରୋଫାଇଲ୍ ଦାଖଲ କରନ୍ତୁ |', pa: 'ਪ੍ਰੋਫਾਈਲ ਜਮ੍ਹਾਂ ਕਰੋ' },
+            'broadcast_title': { en: 'Post a New Job', hi: 'नई जॉब पोस्ट करें', bn: 'একটি নতুন কাজ পোস্ট করুন', mr: 'नवीन नोकरी পোস্ট करा', te: 'కొత్త ఉద్యోగాన్ని పోస్ట్ చేయండి', ta: 'ஒரு புதிய வேலையை இடுகையிடவும்', kn: 'ಹೊಸ ಉದ್ಯೋಗವನ್ನು ಪೋಸ್ಟ್ ಮಾಡಿ', gu: 'નવી જોબ પોસ્ટ કરો', ml: 'ഒരു പുതിയ ജോലി പോസ്റ്റ് ചെയ്യുക', or: 'ଏକ ନୂତନ ଚାକିରି ପୋଷ୍ଟ କରନ୍ତୁ |', pa: 'ਇੱਕ ਨਵੀਂ ਨੌਕਰੀ ਪੋਸਟ ਕਰੋ' },
+            'broadcast_skill_label': { en: '1. Which skill?', hi: '१. किस काम के लिए?', bn: '১. কোন দক্ষতার জন্য?', mr: '१. कोणत्या कौशल्यासाठी?', te: '౧. ఏ నైపుణ్యం కోసం?', ta: '౧. எந்த திறனுக்காக?', kn: '೧. ಯಾವ ಕೌಶಲ್ಯಕ್ಕಾಗಿ?', gu: '૧. કઈ કુશળતા માટે?', ml: '௧. ഏത് കഴിവിനായി?', or: '୧. କେଉଁ କ skill ଶଳ ପାଇଁ?', pa: '੧. ਕਿਹੜੇ ਹੁਨਰ ਲਈ?' },
+            'broadcast_count_label': { en: '2. How many workers?', hi: '२. कितने कारीगर?', bn: '২. কতজন কর্মী?', mr: '२. किती कामगार?', te: '౨. ఎంత మంది కార్మికులు?', ta: '౨. எத்தனை தொழிலாளர்கள்?', kn: '೨. ಎಷ್ಟು ಕೆಲಸಗಾರರು?', gu: '૨. કેટલા કામદારો?', ml: '௨. എത്ര തൊഴിലാളികൾ?', or: '୨. କେତେ ଶ୍ରମିକ?', pa: '੨. ਕਿੰਨੇ ਵਰਕਰ?' },
+            'broadcast_count_placeholder': { en: 'e.g., 5', hi: 'उदा. ५', bn: 'उदा. ৫', mr: 'उदा. ५', te: 'ఉదా. ౫', ta: 'எ.கா. ௫', kn: 'ಉದಾ. ೫', gu: 'દા.ત. ૫', ml: 'ഉദാ. ൫', or: 'ଉଦା. ୫', pa: 'ਜਿਵੇਂ ਕਿ ੫' },
+            'broadcast_wage_label': { en: '3. Wage per worker?', hi: '३. प्रति कारीगर दिहाड़ी?', bn: '৩. প্রতি কর্মীর মজুরি?', mr: '३. प्रति कामगार मजुरी?', te: '౩. ప్రతి కార్మికునికి వేతనం?', ta: '౩. ஒரு தொழிலாளிக்கு ஊதியம்?', kn: '೩. ಪ್ರತಿ ಕಾರ್ಮಿಕನಿಗೆ ವೇತನ?', gu: '૩. પ્રતિ કાર્યકર વેતન?', ml: '൩. ഓരോ തൊഴിലാളിക്കും വേതനം?', or: '୩. ପ୍ରତ୍ୟେକ ଶ୍ରମିକଙ୍କ ପାଇଁ ମଜୁରୀ?', pa: '੩. ਪ੍ਰਤੀ ਵਰਕਰ ਤਨਖਾਹ?' },
+            'broadcast_wage_placeholder': { en: 'e.g., 800', hi: 'उदा. ८००', bn: 'उदा. ৮০০', mr: 'उदा. ८۰۰', te: 'ఉదా. ౮౦౦', ta: 'எ.கா. ௮௦௦', kn: 'ಉದಾ. ೮೦೦', gu: 'દા.ત. ૮૦૦', ml: 'ഉദാ. ൮൦൦', or: 'ଉଦା. ୮୦୦', pa: 'ਜਿਵੇਂ ਕਿ ੮੦੦' },
+            'broadcast_per_day': { en: '/ per day', hi: '/ प्रति दिन', bn: '/ প্রতি দিন', mr: '/ प्रति दिन', te: '/ రోజుకు', ta: '/ ஒரு நாளைக்கு', kn: '/ ಪ್ರತಿ ದಿನ', gu: '/ પ્રતિ દિવસ', ml: '/ പ്രതിദിനം', or: '/ ପ୍ରତିଦିନ', pa: '/ ਪ੍ਰਤੀ ਦਿਨ' },
+            'broadcast_details_label': { en: '4. Your Details', hi: '४. आपकी जानकारी', bn: '৪. আপনার বিবরণ', mr: '४. तुमची माहिती', te: '౪. మీ వివరాలు', ta: '௪. உங்கள் விவரங்கள்', kn: '೪. ನಿಮ್ಮ ವಿವರಗಳು', gu: '૪. તમારી વિગતો', ml: '൪. നിങ്ങളുടെ വിവരങ്ങൾ', or: '୪. ଆପଣଙ୍କର ବିବରଣୀ', pa: '੪. ਤੁਹਾਡੇ ਵੇਰਵੇ' },
+            'broadcast_submit_btn': { en: '📣 Post Job', hi: '📣 जॉब पोस्ट करें', bn: '📣 কাজ পোস্ট করুন', mr: '📣 नोकरी পোস্ট करा', te: '📣 ఉద్యోగాన్ని పోస్ట్ చేయండి', ta: '📣 வேலையை இடுகையிடவும்', kn: '📣 ಉದ್ಯೋಗವನ್ನು ಪೋಸ್ಟ್ ಮಾಡಿ', gu: '📣 જોબ પોસ્ટ કરો', ml: '📣 ജോലി പോസ്റ്റ് ചെയ്യുക', or: '📣 ଚାକିରି ପୋଷ୍ଟ କରନ୍ତୁ |', pa: '📣 ਨੌਕਰੀ ਪੋਸਟ ਕਰੋ' },
+            'job_board_title': { en: 'Available Jobs', hi: 'उपलब्ध काम', bn: 'উপলব্ধ কাজ', mr: 'उपलब्ध नोकर्‍या', te: 'అందుబాటులో ఉన్న ఉద్యోగాలు', ta: 'கிடைக்கக்கூடிய வேலைகள்', kn: 'ಲಭ್ಯವಿರುವ ಉದ್ಯೋಗಗಳು', gu: 'ઉપલબ્ધ નોકરીઓ', ml: 'ലഭ്യമായ ജോലികൾ', or: 'ଉପଲବ୍ଧ ଚାକିରି |', pa: 'ਉਪਲਬਧ ਨੌਕਰੀਆਂ' },
+            'job_board_no_jobs': { en: 'No jobs are posted right now.', hi: 'अभी कोई जॉब पोस्ट नहीं है।', bn: 'এখন কোনো কাজ পোস্ট করা হয়নি।', mr: 'सध्या कोणतीही नोकरी পোস্ট केलेली नाही।', te: 'ప్రస్తుతం ఉద్యోగాలు పోస్ట్ చేయబడలేదు.', ta: 'தற்போது எந்த வேலையும் đăng செய்யப்படவில்லை.', kn: 'ಈಗ ಯಾವುದೇ ಉದ್ಯೋಗಗಳನ್ನು ಪೋಸ್ಟ್ ಮಾಡಲಾಗಿಲ್ಲ.', gu: 'હમણાં કોઈ નોકરી પોસ્ટ કરવામાં આવી નથી.', ml: 'ഇപ്പോൾ ജോളികളൊന്നും പോസ്റ്റ് ചെയ്തിട്ടില്ല.', or: 'ବର୍ତ୍ତମାନ କ jobs ଣସି ଚାକିରି ପୋଷ୍ଟ କରାଯାଇ ନାହିଁ |', pa: 'ਹੁਣੇ ਕੋਈ ਨੌਕਰੀ ਪੋਸਟ ਨਹੀਂ ਕੀਤੀ ਗਈ ਹੈ।' },
+            'find_worker_title': { en: 'Which skill do you need?', hi: 'आपको किस काम के लिए कारीगर चाहिए?', bn: 'আপনার কোন দক্ষতার প্রয়োজন?', mr: 'तुम्हाला कोणत्या कौशल्याची गरज आहे?', te: 'మీకు ఏ నైపుణ్యం కావాలి?', ta: 'உங்களுக்கு எந்த திறன் தேவை?', kn: 'ನಿಮಗೆ ಯಾವ ಕೌಶಲ್ಯ ಬೇಕು?', gu: 'તમારે કઈ કુશળતાની જરૂર છે?', ml: 'നിങ്ങൾക്ക് ഏത് കഴിവാണ് വേണ്ടത്?', or: 'ଆପଣଙ୍କୁ କେଉଁ କ skill ଶଳ ଦରକାର?', pa: 'ਤੁਹਾਨੂੰ ਕਿਹੜੇ ਹੁਨਰ ਦੀ ਲੋੜ ਹੈ?' },
+            'find_worker_placeholder': { en: 'Search for a skill (e.g., Painter)', hi: 'कौशल खोजें (उदा. पेंटर)', bn: 'একটি দক্ষতা খুঁজুন (उदा. পেইন্টার)', mr: 'कौशल्य शोधा (उदा. पेंटर)', te: 'నైపుణ్యం కోసం శోధించండి (ఉదా. పెయింటర్)', ta: 'ஒரு திறனைத் தேடுங்கள் (எ.கா. பெயிண்டர்)', kn: 'ಕೌಶಲ್ಯಕ್ಕಾಗಿ ಹುಡುಕಿ (ಉದಾ. ಪೇಂಟರ್)', gu: 'કૌશલ્ય શોધો (દા.ત. પેઇન્ટર)', ml: 'ഒരു കഴിവിനായി തിരയുക (ഉദാ. പെയിന്റർ)', or: 'ଏକ କ skill ଶଳ ପାଇଁ ସନ୍ଧାନ କରନ୍ତୁ (ଉଦା। ପେଣ୍ଟର୍) |', pa: 'ਇੱਕ ਹੁਨਰ ਦੀ ਖੋਜ ਕਰੋ (ਜਿਵੇਂ ਕਿ ਪੇਂਟਰ)' },
+            'find_worker_map_title': { en: 'Worker Locations Map 🛰️', hi: 'कारीगर लोकेशन मैप 🛰️', bn: 'কর্মী অবস্থান মানচিত্র 🛰️', mr: 'कामगार लोकेशन नकाशा 🛰️', te: 'కార్మికుల స్థానాల మ్యాప్ 🛰️', ta: 'தொழிலாளர் இருப்பிட வரைபடம் 🛰️', kn: 'ಕೆಲಸಗಾರರ ಸ್ಥಳಗಳ ನಕ್ಷೆ 🛰️', gu: 'કાર્યકર સ્થાનો નકશો 🛰️', ml: 'തൊഴിലാളി ലൊക്കേഷൻ മാപ്പ് 🛰️', or: 'ଶ୍ରମିକ ଅବସ୍ଥାନ ମାନଚିତ୍ର 🛰️', pa: 'ਵਰਕਰ ਟਿਕਾਣੇ ਦਾ ਨਕਸ਼ਾ 🛰️' },
+            'find_worker_available_workers': { en: 'Available Workers', hi: 'उपलब्ध कारीगर', bn: 'উপলব্ধ কর্মী', mr: 'उपलब्ध कामगार', te: 'అందుబాటులో ఉన్న కార్మికులు', ta: 'கிடைக்கக்கூடிய தொழிலாளர்கள்', kn: 'ಲಭ್ಯವಿರುವ ಕೆಲಸಗಾರರು', gu: 'ઉપલબ્ધ કામદારો', ml: 'ലഭ്യമായ തൊഴിലാളികൾ', or: 'ଉପଲବ୍ଧ ଶ୍ରମିକମାନେ |', pa: 'ਉਪਲਬਧ ਕਾਮੇ' },
+            'find_worker_no_worker_found': { en: 'No workers found for this skill.', hi: 'इस काम के लिए कोई कारीगर नहीं मिला।', bn: 'এই দক্ষতার জন্য কোনো কর্মী পাওয়া যায়নি।', mr: 'या कौशल्यासाठी कोणतेही कामगार आढळले नाहीत।', te: 'ఈ నైపుణ్యం కోసం కార్మికులు కనుగొనబడలేదు.', ta: 'இந்த திறனுக்கான தொழிலாளர்கள் எவரும் கிடைக்கவில்லை.', kn: 'ಈ ಕೌಶಲ್ಯಕ್ಕಾಗಿ ಯಾವುದೇ ಕೆಲಸಗಾರರು ಕಂಡುಬಂದಿಲ್ಲ.', gu: 'આ કુશળતા માટે કોઈ કામદારો મળ્યા નથી.', ml: 'ഈ കഴിവിനായി തൊഴിലാളികളെ കണ്ടെത്തിയില്ല.', or: 'ଏହି କ skill ଶଳ ପାଇଁ କ workers ଣସି ଶ୍ରମିକ ମିଳିଲେ ନାହିଁ |', pa: 'ਇਸ ਹੁਨਰ ਲਈ ਕੋਈ ਕਾਮੇ ਨਹੀਂ ਮਿਲੇ।' },
+            'modal_success_title': { en: 'Success!', hi: 'सफलता!', bn: 'সাফল্য!', mr: 'यशस्वी!', te: 'విజయం!', ta: 'வெற்றி!', kn: 'ಯಶಸ್ಸು!', gu: 'સફળતા!', ml: 'വിജയം!', or: 'ସଫଳତା!', pa: 'ਸਫਲਤਾ!' },
+            'modal_success_sub': { en: 'Submitted Successfully!', hi: 'सफलतापूर्वक जमा किया गया!', bn: 'সফলভাবে জমা দেওয়া হয়েছে!', mr: 'यशस्वीरित्या सबमिट केले!', te: 'విజయవంతంగా సమర్పించబడింది!', ta: 'வெற்றிகரமாக சமர்ப்பிக்கப்பட்டது!', kn: 'ಯಶಸ್ವಿಯಾಗಿ ಸಲ್ಲಿಸಲಾಗಿದೆ!', gu: 'સફળતાપૂર્વક સબમિટ કર્યું!', ml: 'വിജയകരമായി സമർപ്പിച്ചു!', or: 'ସଫଳତାର ସହିତ ଦାଖଲ କରାଯାଇଛି |', pa: 'ਸਫਲਤਾਪੂਰਵਕ ਜਮ੍ਹਾਂ ਕੀਤਾ ਗਿਆ!' },
+            'modal_ok_btn': { en: 'OK', hi: 'ठीक है', bn: 'ঠিক আছে', mr: 'ठीक आहे', te: 'సరే', ta: 'சரி', kn: 'ಸರಿ', gu: 'બરાબર', ml: 'ശരി', or: 'ଠିକ୍ ଅଛି |', pa: 'ਠੀਕ ਹੈ' }
+        };
+
+        // --- ELEMENT SELECTORS ---
+        const screens = {
+            languageSelection: document.getElementById('language-selection'),
+            roleSelection: document.getElementById('role-selection'),
+            workerChoice: document.getElementById('worker-choice'),
+            providerChoice: document.getElementById('provider-choice'),
+            workerRegistration: document.getElementById('worker-registration'),
+            providerView: document.getElementById('provider-view'),
+            broadcastView: document.getElementById('broadcast-view'),
+            jobBoardView: document.getElementById('job-board-view')
+        };
+        const buttons = {
+            iAmWorker: document.getElementById('iam-worker'),
+            iAmProvider: document.getElementById('iam-provider'),
+            backButtons: document.querySelectorAll('.back-btn'),
+            getLocationBtn: document.getElementById('get-location-btn'),
+            goToRegister: document.getElementById('btn-go-to-register'),
+            goToJobBoard: document.getElementById('btn-go-to-job-board'),
+            goToFind: document.getElementById('btn-go-to-find'),
+            goToBroadcast: document.getElementById('btn-go-to-broadcast')
+        };
+        const workerForm = document.getElementById('worker-form');
+        const broadcastForm = document.getElementById('broadcast-form');
+        const broadcastSkillSelect = document.getElementById('broadcast-skill');
+        const jobBoardList = document.getElementById('job-board-list');
+        const noJobsFoundMsg = document.getElementById('no-jobs-found');
+        const skillSelectionContainer = document.getElementById('skill-selection');
+        const jobSelectionContainer = document.getElementById('job-selection');
+        const workerListContainer = document.getElementById('worker-list-container');
+        const workerList = document.getElementById('worker-list');
+        const workerListHeading = document.getElementById('worker-list-heading');
+        const noWorkersFoundMsg = document.getElementById('no-workers-found');
+        const jobSearchInput = document.getElementById('job-search-input');
+        const skillSearchInput = document.getElementById('skill-search-input');
+        const skillSearchMic = document.getElementById('skill-search-mic');
+        const locationStatus = document.getElementById('location-status');
+        const successModal = document.getElementById('success-modal');
+        const successModalTitle = document.getElementById('success-modal-title');
+        const successModalMsg = document.getElementById('success-modal-msg');
+        const closeModalBtn = document.getElementById('close-modal');
+        const languageGrid = document.getElementById('language-grid');
+
+        // --- APP STATE ---
+        let currentLang = 'en';
+        const languages = [
+            { code: 'en', name: 'English', native: 'English' }, { code: 'hi', name: 'Hindi', native: 'हिन्दी' },
+            { code: 'bn', name: 'Bengali', native: 'বাংলা' }, { code: 'mr', name: 'Marathi', native: 'मराठी' },
+            { code: 'te', name: 'Telugu', native: 'తెలుగు' }, { code: 'ta', name: 'Tamil', native: 'தமிழ்' },
+            { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ' }, { code: 'gu', name: 'Gujarati', native: 'ગુજરાતી' },
+            { code: 'ml', name: 'Malayalam', native: 'മലയാളം' }, { code: 'or', name: 'Odia', native: 'ଓଡ଼ିଆ' },
+            { code: 'pa', name: 'Punjabi', native: 'ਪੰਜਾਬੀ' },
+        ];
+        const skills = [{ name: 'Painter', name_hi: 'पेंटर', icon: '🎨' }, { name: 'Mason', name_hi: 'राजमिस्त्री', icon: '🧱' }, { name: 'Carpenter', name_hi: 'बढ़ई', icon: '🔨' }, { name: 'Plumber', name_hi: 'प्लम्बर', icon: '🔧' }, { name: 'Electrician', name_hi: 'इलेक्ट्रीशियन', icon: '💡' }, { name: 'Cleaner', name_hi: 'सफाई कर्मचारी', icon: '🧹' }, { name: 'Gardener', name_hi: 'माली', icon: '🌱' }, { name: 'Cook', name_hi: 'रसोइया', icon: '🍳' }, { name: 'Labourer', name_hi: 'मज़दूर', icon: '💪' }, { name: 'Welder', name_hi: 'वेल्डर', icon: '🔥' }, { name: 'Driver', name_hi: 'ड्राइवर', icon: '🚗' }, { name: 'Mechanic', name_hi: 'मैकेनिक', icon: '🛠️' }, { name: 'Security Guard', name_hi: 'सुरक्षा गार्ड', icon: '🛡️' }, { name: 'Tile Setter', name_hi: 'टाइल मिस्त्री', icon: '💠' }, { name: 'AC Technician', name_hi: 'एसी मैकेनिक', icon: '❄️' }, { name: 'House Help', name_hi: 'घरेलू सहायक', icon: '🏠' }];
+        let selectedSkills = [];
+        let workerCoordinates = null;
+        let map = null;
+        let markersLayer = null;
+
+        // --- CORE FUNCTIONS ---
+
+        /**
+         * Applies the selected language to all elements with data-translate-key
+         */
+        function applyLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('userLanguage', lang);
+            document.querySelectorAll('[data-translate-key]').forEach(el => {
+                const key = el.dataset.translateKey;
+                const translation = translations[key]?.[lang];
+                if (translation !== undefined) {
+                    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                        el.placeholder = translation;
+                    } else {
+                        el.textContent = translation;
+                    }
+                }
+            });
+        }
+        
+        /**
+         * Populates the language selection grid
+         */
+        function populateLanguages() {
+            languageGrid.innerHTML = '';
+            languages.forEach(lang => {
+                const langCard = document.createElement('div');
+                langCard.className = 'lang-card bg-white p-4 rounded-xl shadow-md cursor-pointer flex flex-col items-center justify-center border-2 border-transparent';
+                langCard.dataset.lang = lang.code;
+                langCard.innerHTML = `<p class="text-2xl font-bold text-gray-800">${lang.native}</p><p class="text-md text-gray-500">${lang.name}</p>`;
+                langCard.addEventListener('click', () => {
+                    applyLanguage(lang.code);
+                    showScreen('roleSelection');
+                });
+                languageGrid.appendChild(langCard);
+            });
+        }
+
+        /**
+         * Hides all screens and shows the one specified by name
+         */
+        function showScreen(screenName) {
+            Object.values(screens).forEach(screen => screen.classList.add('hidden'));
+            if (screens[screenName]) {
+                screens[screenName].classList.remove('hidden');
+            }
+            // Initialize map only when provider view is shown
+            if (screenName === 'providerView' && !map) { initMap(); }
+            // Populate dynamic content when screen is shown
+            if (screenName === 'broadcastView') { populateBroadcastSkills(); }
+            if (screenName === 'jobBoardView') { populateJobBoard(); }
+            
+            // [NEW] Clear selection from employer screen when hiding it
+            if (screenName !== 'providerView') {
+                jobSelectionContainer.querySelectorAll('.skill-icon.selected').forEach(icon => {
+                    icon.classList.remove('selected');
+                });
+            }
+        }
+
+        /**
+         * Initializes the Leaflet map
+         */
+        function initMap() { 
+            if(!map) { 
+                map = L.map('map').setView([28.6139, 77.2090], 11); // Default to Delhi
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+                    attribution: '&copy; OpenStreetMap contributors' 
+                }).addTo(map);
+                markersLayer = L.layerGroup().addTo(map); 
+            } 
+        }
+
+        /**
+         * Populates the skill dropdown for the broadcast form
+         */
+        function populateBroadcastSkills() {
+            broadcastSkillSelect.innerHTML = `<option value="" disabled selected>-- Select Skill --</option>`;
+            skills.forEach(skill => {
+                broadcastSkillSelect.innerHTML += `<option value="${skill.name}">${skill.name_hi} (${skill.name})</option>`;
+            });
+        }
+        
+        /**
+         * Populates the job board with broadcasted jobs from localStorage
+         */
+        function populateJobBoard() {
+             const allJobs = JSON.parse(localStorage.getItem('jobBroadcasts') || '[]');
+             jobBoardList.innerHTML = '';
+             if (allJobs.length === 0) {
+                 noJobsFoundMsg.classList.remove('hidden');
+             } else {
+                 noJobsFoundMsg.classList.add('hidden');
+                 allJobs.reverse().forEach(job => { // Show newest first
+                     const skillInfo = skills.find(s => s.name === job.skill) || { icon: '💼' };
+                     const card = document.createElement('div');
+                     card.className = 'bg-white p-4 rounded-lg shadow-md flex items-center justify-between flex-wrap gap-4';
+                     card.innerHTML = `
+                         <div class="flex-grow">
+                             <div class="flex items-center gap-3 mb-2">
+                                 <span class="text-4xl">${skillInfo.icon}</span>
+                                 <div>
+                                     <h4 class="text-xl font-bold">${job.skill}</h4>
+                                     <p class="text-sm text-gray-600 font-semibold">${job.employerName} (${job.employerPhone})</p>
+                                 </div>
+                             </div>
+                             <div class="flex items-center gap-4 mt-4">
+                                 <div><p class="text-xs text-gray-500 uppercase font-bold">WAGE</p><p class="text-xl font-bold text-green-600">₹${job.wage} <span class="text-sm font-normal text-gray-600">/ day</span></p></div>
+                                 <div><p class="text-xs text-gray-500 uppercase font-bold">NEED</p><p class="text-2xl font-bold text-blue-600">${job.count}</p></div>
+                             </div>
+                         </div>
+                         <a href="tel:${job.employerPhone}" class="w-full sm:w-auto text-center bg-green-500 text-white font-bold py-3 px-5 rounded-lg flex-shrink-0">Call Employer</a>
+                     `;
+                     jobBoardList.appendChild(card);
+                 });
+             }
+        }
+        
+        /**
+         * Creates a clickable skill icon element
+         */
+        function createSkillIcon(skill, isSelectable) {
+            const div = document.createElement('div');
+            div.className = 'skill-icon cursor-pointer flex flex-col items-center justify-center bg-gray-100 p-4 rounded-lg text-center';
+            div.dataset.skill = skill.name;
+            div.innerHTML = `<div class="text-5xl mb-2">${skill.icon}</div><p class="font-semibold text-sm">${skill.name_hi}</p><p class="text-xs text-gray-500">(${skill.name})</p>`;
+            
+            if (isSelectable) {
+                // For worker registration form
+                div.addEventListener('click', () => {
+                    div.classList.toggle('selected');
+                    if (div.classList.contains('selected')) { 
+                        selectedSkills.push(skill.name); 
+                    } else { 
+                        selectedSkills = selectedSkills.filter(s => s !== skill.name); 
+                    }
+                });
+            } else {
+                // For employer "find worker" screen
+                // This is the function that was changed
+                div.addEventListener('click', () => {
+                    // 1. Deselect all other icons in this container
+                    jobSelectionContainer.querySelectorAll('.skill-icon').forEach(icon => {
+                        icon.classList.remove('selected');
+                    });
+                    
+                    // 2. Select the clicked icon
+                    div.classList.add('selected');
+                    
+                    // 3. Start the search
+                    findWorkers(skill.name);
+                });
+            }
+            return div;
+        }
+        
+        /**
+         * Populates both skill grids (worker registration and employer find)
+         */
+        function populateSkills() {
+            skillSelectionContainer.innerHTML = ''; 
+            jobSelectionContainer.innerHTML = '';
+            skills.forEach(skill => {
+                skillSelectionContainer.appendChild(createSkillIcon(skill, true));
+                
+                // --- [MODIFIED] ---
+                // The click logic is now inside createSkillIcon, so we just append it
+                const jobIcon = createSkillIcon(skill, false);
+                jobSelectionContainer.appendChild(jobIcon);
+                // --- [END OF MODIFICATION] ---
+            });
+        }
+        
+        /**
+         * Triggers the process to find workers.
+         */
+        function findWorkers(skillName) {
+            // First, clear any previous results
+            workerList.innerHTML = '';
+            noWorkersFoundMsg.classList.add('hidden');
+            workerListContainer.classList.add('hidden');
+            if(markersLayer) markersLayer.clearLayers();
+            
+            // Ask for the employer's location
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const employerCoords = [position.coords.latitude, position.coords.longitude];
+                    processAndDisplayWorkers(skillName, employerCoords);
+                }, error => {
+                    alert('Please allow location access to find workers near you.');
+                    console.error(error);
+                });
+            } else {
+                alert('Geolocation is not supported by this browser.');
+            }
+        }
+
+        /**
+         * Filters workers from localStorage and displays them
+         */
+        function processAndDisplayWorkers(skillName, employerCoords) {
+            const allWorkers = JSON.parse(localStorage.getItem('workers') || '[]');
+            const filteredWorkers = allWorkers.filter(worker =>
+                worker.skills.includes(skillName) && worker.coordinates
+            );
+            
+            workerListHeading.textContent = `Available ${skillName}s`;
+            
+            // Show map and list containers
+            document.getElementById('map-container').classList.remove('hidden');
+            workerListContainer.classList.remove('hidden');
+            
+            // Update map
+            updateMap(filteredWorkers, employerCoords);
+            
+            // Populate list
+            workerList.innerHTML = '';
+            if (filteredWorkers.length === 0) {
+                noWorkersFoundMsg.classList.remove('hidden');
+            } else {
+                noWorkersFoundMsg.classList.add('hidden');
+                filteredWorkers.forEach(worker => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white p-4 rounded-lg shadow-md flex items-center justify-between flex-wrap gap-4';
+                    
+                    // Simple distance calculation (very rough)
+                    const distLat = (worker.coordinates[0] - employerCoords[0]) * 111;
+                    const distLng = (worker.coordinates[1] - employerCoords[1]) * 111 * Math.cos(employerCoords[0] * Math.PI/180);
+                    const distance = Math.sqrt(distLat*distLat + distLng*distLng).toFixed(1);
+                    
+                    card.innerHTML = `
+                        <div class="flex-grow">
+                            <div class="flex items-center gap-3 mb-2">
+                                <span class="text-4xl">${skills.find(s => s.name === skillName)?.icon || '🧑‍🔧'}</span>
+                                <div>
+                                    <h4 class="text-xl font-bold">${worker.name}</h4>
+                                    <p class="text-sm text-gray-600 font-semibold">~ ${distance} km away</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 mt-4">
+                                <div><p class="text-xs text-gray-500 uppercase font-bold">WAGE</p><p class="text-xl font-bold text-green-600">₹${worker.wage} <span class="text-sm font-normal text-gray-600">/ ${worker.workType}</span></p></div>
+                            </div>
+                        </div>
+                        <a href="tel:${worker.phone}" class="w-full sm:w-auto text-center bg-green-500 text-white font-bold py-3 px-5 rounded-lg flex-shrink-0">Call Now</a>
+                    `;
+                    workerList.appendChild(card);
+                });
+            }
+        }
+
+        /**
+         * Updates the map with employer and worker markers
+         */
+        function updateMap(workers, employerCoords) {
+            markersLayer.clearLayers();
+            const bounds = [];
+            
+            // Add employer marker
+            const employerIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448609.png', iconSize: [38, 38] });
+            const employerMarker = L.marker(employerCoords, { icon: employerIcon }).addTo(markersLayer);
+            employerMarker.bindPopup('<b>Your Location</b>');
+            bounds.push(employerCoords);
+            
+            // Add worker markers
+            workers.forEach(worker => {
+                const workerIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684072.png', iconSize: [38, 38] });
+                const marker = L.marker(worker.coordinates, { icon: workerIcon }).addTo(markersLayer);
+                marker.bindPopup(`
+                    <b>${worker.name}</b><br>
+                    Skill: ${worker.skills.join(', ')}<br>
+                    Rate: ₹${worker.wage} / ${worker.workType}<br>
+                    <a href="tel:${worker.phone}">Call: ${worker.phone}</a>
+                `);
+                bounds.push(worker.coordinates);
+            });
+            
+            if (bounds.length > 0) {
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+        
+        /**
+         * Shows the success modal
+         */
+        function showSuccessModal(titleKey, messageKey) {
+            successModalTitle.dataset.translateKey = titleKey;
+            successModalMsg.dataset.translateKey = messageKey;
+            applyLanguage(currentLang); // Re-apply language for modal text
+            successModal.style.display = 'flex';
+        }
+
+        /**
+         * Main app initialization function
+         */
+        function initializeApp() {
+            populateLanguages();
+            populateSkills();
+            // As per your comment, always show language selection on app start
+            showScreen('languageSelection');
+        }
+        
+        // --- EVENT LISTENERS ---
+
+        // Role selection
+        buttons.iAmWorker.addEventListener('click', () => showScreen('workerChoice'));
+        buttons.iAmProvider.addEventListener('click', () => showScreen('providerChoice'));
+
+        // Main choice navigation
+        buttons.goToRegister.addEventListener('click', () => showScreen('workerRegistration'));
+        buttons.goToJobBoard.addEventListener('click', () => showScreen('jobBoardView'));
+        buttons.goToFind.addEventListener('click', () => showScreen('providerView'));
+        buttons.goToBroadcast.addEventListener('click', () => showScreen('broadcastView'));
+
+        // Back button logic
+        buttons.backButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const currentScreenEl = e.target.closest('div[id].hidden') || e.target.closest('div[id]');
+                const currentScreen = currentScreenEl ? currentScreenEl.id : null;
+                
+                if (currentScreen === 'worker-choice' || currentScreen === 'provider-choice') {
+                    showScreen('roleSelection');
+                } else if (currentScreen === 'worker-registration' || currentScreen === 'job-board-view') {
+                    showScreen('workerChoice');
+                } else if (currentScreen === 'broadcast-view' || currentScreen === 'provider-view') {
+                    showScreen('providerChoice');
+                } else if (currentScreen === 'role-selection') {
+                    showScreen('languageSelection'); // Go back to lang screen
+                } else {
+                     showScreen('languageSelection'); // Default fallback
+                }
+            });
+        });
+        
+        // Get Location button
+        buttons.getLocationBtn.addEventListener('click', () => {
+            if (navigator.geolocation) {
+                locationStatus.textContent = 'Fetching location...';
+                locationStatus.classList.remove('text-red-600', 'text-green-600');
+                navigator.geolocation.getCurrentPosition(position => {
+                    workerCoordinates = [position.coords.latitude, position.coords.longitude];
+                    locationStatus.textContent = `📍 Location found! (${workerCoordinates[0].toFixed(2)}, ${workerCoordinates[1].toFixed(2)})`;
+                    locationStatus.classList.add('text-green-600');
+                }, error => {
+                    locationStatus.textContent = 'Error: Could not get location. Please allow access.';
+                    locationStatus.classList.add('text-red-600');
+                    console.error(error);
+                });
+            } else {
+                locationStatus.textContent = 'Geolocation is not supported by this browser.';
+                locationStatus.classList.add('text-red-600');
+            }
+        });
+        
+        // Worker Registration Form submission
+        workerForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            if (selectedSkills.length === 0) {
+                alert('Please select at least one skill.');
+                return;
+            }
+            if (!workerCoordinates) {
+                alert('Please share your location.');
+                return;
+            }
+            
+            const workerData = {
+                id: 'worker_' + Date.now(),
+                name: document.getElementById('worker-name').value,
+                phone: document.getElementById('worker-phone').value,
+                skills: selectedSkills,
+                coordinates: workerCoordinates,
+                workType: document.querySelector('input[name="work-type"]:checked').value,
+                wage: document.getElementById('worker-wage').value
+            };
+            
+            // Save to localStorage
+            const workers = JSON.parse(localStorage.getItem('workers') || '[]');
+            workers.push(workerData);
+            localStorage.setItem('workers', JSON.stringify(workers));
+            
+            // Reset form
+            workerForm.reset();
+            selectedSkills = [];
+            workerCoordinates = null;
+            locationStatus.textContent = '';
+            document.querySelectorAll('.skill-icon.selected').forEach(el => el.classList.remove('selected'));
+            
+            showSuccessModal('modal_success_title', 'modal_success_sub');
+        });
+        
+        // Broadcast Job Form submission
+        broadcastForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const jobData = {
+                id: 'job_' + Date.now(),
+                skill: document.getElementById('broadcast-skill').value,
+                count: document.getElementById('broadcast-count').value,
+                wage: document.getElementById('broadcast-wage').value,
+                employerName: document.getElementById('broadcast-name').value,
+                employerPhone: document.getElementById('broadcast-phone').value,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Save to localStorage
+            const jobs = JSON.parse(localStorage.getItem('jobBroadcasts') || '[]');
+            jobs.push(jobData);
+            localStorage.setItem('jobBroadcasts', JSON.stringify(jobs));
+            
+            // Reset form
+            broadcastForm.reset();
+            
+            showSuccessModal('modal_success_title', 'modal_success_sub');
+        });
+
+        // Close modal button
+        closeModalBtn.addEventListener('click', () => {
+            successModal.style.display = 'none';
+            showScreen('roleSelection'); // Go to main role screen after modal close
+        });
+        
+        // Search bar filtering for Provider view
+        jobSearchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            jobSelectionContainer.querySelectorAll('.skill-icon').forEach(icon => {
+                const skillName = icon.dataset.skill.toLowerCase();
+                const skillNameHi = icon.querySelector('p:first-of-type').textContent.toLowerCase();
+                if (skillName.includes(searchTerm) || skillNameHi.includes(searchTerm)) {
+                    icon.style.display = 'flex';
+                } else {
+                    icon.style.display = 'none';
+                }
+            });
+        });
+        
+        // Search bar filtering for Worker registration view
+        skillSearchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            skillSelectionContainer.querySelectorAll('.skill-icon').forEach(icon => {
+                const skillName = icon.dataset.skill.toLowerCase();
+                const skillNameHi = icon.querySelector('p:first-of-type').textContent.toLowerCase();
+                if (skillName.includes(searchTerm) || skillNameHi.includes(searchTerm)) {
+                    icon.style.display = 'flex';
+                } else {
+                    icon.style.display = 'none';
+                }
+            });
+        });
+
+        // Speech Recognition for skill search
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            skillSearchMic.addEventListener('click', () => {
+                recognition.lang = currentLang === 'en' ? 'en-US' : `${currentLang}-IN`;
+                try {
+                    recognition.start();
+                    skillSearchMic.classList.add('listening');
+                } catch(e) {
+                    console.error("Speech recognition already active or error:", e);
+                }
+            });
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                skillSearchInput.value = transcript;
+                // Trigger the input event to filter
+                skillSearchInput.dispatchEvent(new Event('input', { bubbles:true, cancelable:true }));
+            };
+
+            recognition.onend = () => {
+                skillSearchMic.classList.remove('listening');
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error', event.error);
+                skillSearchMic.classList.remove('listening');
+            };
+            
+        } else {
+            skillSearchMic.style.display = 'none'; // Hide mic button if not supported
+        }
+
+        // --- START THE APP ---
+        initializeApp();
+    });
+    </script>
+</body>
+</html>
